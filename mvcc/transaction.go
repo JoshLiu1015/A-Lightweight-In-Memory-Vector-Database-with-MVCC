@@ -9,7 +9,7 @@ const (
 )
 
 type Transaction struct {
-    ID     int
-    Status TransactionStatus
-    StartTS int // same as ID for simplicity
+    id     int
+    status TransactionStatus
+    startTS int // same as ID for simplicity
 }
