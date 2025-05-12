@@ -6,10 +6,9 @@ app = Flask(__name__)
 @app.route('/search', methods=['POST'])
 def search():
     data = request.get_json()
-
     try:
         query_vector = data["query"]
-        candidates = data["candidates"]  # list of {"key": ..., "vector": [...]}
+        candidates = data["candidates"]
         k = int(data.get("k", 5))
         metric = data.get("metric", "cosine")
 
