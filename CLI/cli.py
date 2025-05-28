@@ -1,6 +1,11 @@
 import sys
 import os
+import ast
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
 
 from mvcc.store import Store
 from mvcc.record import Record
@@ -29,6 +34,22 @@ def main():
                 store.insert(txn_id, r)
                 store.commit_transaction(txn_id)
                 print(f"Inserted {cmd[1]}")
+            
+            elif action == "insert" and len(cmd) >= 3:
+                try:
+                    vec = ast.literal_eval(" ".join(cmd[2:]))  # safely parse the list
+                    if not isinstance(vec, list) or not all(isinstance(x, (float, int)) for x in vec):
+                        raise ValueError("Vector must be a list of numbers.")
+                except Exception as e:
+                    print(f"Invalid vector format: {e}")
+                    continue
+
+                r = Record(cmd[1])
+                r.vector = vec
+                store.insert(txn_id, r)
+                store.commit_transaction(txn_id)
+                print(f"Inserted {cmd[1]} with vector {vec}")
+
 
             elif action == "update" and len(cmd) == 2:
                 r = Record(cmd[1])

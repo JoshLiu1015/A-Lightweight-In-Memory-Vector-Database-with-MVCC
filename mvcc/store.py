@@ -1,8 +1,8 @@
 import threading
 import time
 import math
-from record import Record
-from transaction import Transaction, TransactionStatus
+from .record import Record
+from .transaction import Transaction, TransactionStatus
 
 class Store:
     def __init__(self):
