@@ -1,5 +1,14 @@
+import os
+os.environ["USE_TF"] = "0"
+
+from sentence_transformers import SentenceTransformer
 import numpy as np
 from scipy.spatial.distance import cdist
+
+model = SentenceTransformer("hkunlp/instructor-xl")
+
+def string_to_vector(text):
+    return model.encode(text).tolist()
 
 def compute_top_k(query, candidates, k=5, metric="cosine"):
     keys = [c["key"] for c in candidates]
