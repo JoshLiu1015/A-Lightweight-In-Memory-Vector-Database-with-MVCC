@@ -3,6 +3,7 @@ import time
 import math
 from .record import Record
 from .transaction import Transaction, TransactionStatus
+from vector_utils import convert_text_to_vector, send_vector
 
 class Store:
     def __init__(self):
@@ -15,7 +16,12 @@ class Store:
         with self.lock:
             self.current_txn_id += 1
             txn = Transaction(self.current_txn_id)
+            
             self.transactions[txn.id] = txn
+
+            # Initialize snapshot data
+            self.read(txn.id)
+
             return txn.id
 
     def insert(self, txn_id: int, record: Record) -> None:
@@ -29,6 +35,8 @@ class Store:
             if record.id in self.records:
                 raise Exception(f"record with ID {record.id} already exists")
             self.records[record.id] = record
+            vector = convert_text_to_vector(record.value)
+            send_vector(record.id, vector)
 
     def update(self, txn_id: int, record: Record) -> None:
         record.begin_ts = txn_id
@@ -53,7 +61,9 @@ class Store:
             head = self.records[record.id]
             record.next = head
             self.records[record.id] = record
-
+            vector = convert_text_to_vector(record.value)
+            send_vector(record.id, vector)
+    
     def delete(self, txn_id: int, record_id: str) -> None:
         with self.lock:
             head = self.records.get(record_id)
@@ -67,6 +77,10 @@ class Store:
         with self.lock:
             items = list(self.records.values())
             txns = dict(self.transactions)
+            txn = txns.get(txn_id)
+
+            if txn.snapshot_data:
+                return list(txn.snapshot_data)
 
         valid_records: list[Record] = []
         for head in items:
@@ -81,6 +95,7 @@ class Store:
                     break
                 current = current.next
 
+        txn.snapshot_data = valid_records
         return valid_records
 
     def commit_transaction(self, txn_id: int) -> None:
