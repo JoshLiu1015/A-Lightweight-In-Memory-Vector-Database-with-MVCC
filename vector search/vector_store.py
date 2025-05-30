@@ -1,5 +1,14 @@
 # vector_store.py
 
+"""
+In-memory key-vector store utilities.
+
+- add_vector: Adds a vector with a key.
+- get_all_vectors: Retrieves all stored vectors.
+- reset_store: Clears the store.
+"""
+
+
 vector_store = {}
 
 def add_vector(key, vector):

@@ -5,6 +5,14 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from scipy.spatial.distance import cdist
 
+"""
+Utility functions for vector encoding and similarity search.
+
+- string_to_vector: Converts text to a vector using a pre-trained model.
+- compute_top_k: Finds the top-k closest vectors to a query using a distance metric.
+"""
+
+
 model = SentenceTransformer("hkunlp/instructor-xl")
 
 def string_to_vector(text):

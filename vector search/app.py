@@ -3,6 +3,11 @@ from utils import compute_top_k
 
 app = Flask(__name__)
 
+"""
+Flask web server exposing a /search endpoint for vector similarity search.
+Accepts a query vector and candidate vectors, returns top-k closest matches.
+"""
+
 @app.route('/search', methods=['POST'])
 def search():
     data = request.get_json()

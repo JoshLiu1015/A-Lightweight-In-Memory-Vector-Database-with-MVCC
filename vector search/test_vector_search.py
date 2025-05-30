@@ -1,6 +1,11 @@
 from utils import string_to_vector, compute_top_k
 from vector_store import reset_store, add_vector, get_all_vectors
 
+"""
+Unit tests for vector search utilities and vector store functionality.
+"""
+
+
 def test_string_to_vector_returns_vector():
     vec = string_to_vector("finance: Apple stock rises")
     assert isinstance(vec, list)
