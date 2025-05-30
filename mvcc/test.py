@@ -85,5 +85,27 @@ class TestSimpleMVCCKeys(unittest.TestCase):
         # A#1 still visible, B#2 visible, but A#3 is uncommitted so skipped
         self.assertDictEqual(visible_keys, {"A": "A_1", "B": "B_2"})
 
+
+    def test3_read_your_own_writes(self):
+        store = Store()
+
+        # ─── Prepopulate and commit A#1 ──────────────────────────────
+        tx1 = store.begin_transaction()
+        rec_a_v1 = Record("A", "initial")
+        store.insert(tx1, rec_a_v1)
+        store.commit_transaction(tx1)
+
+        # ─── Transaction 2: update A (uncommitted) ────────────────────
+        tx2 = store.begin_transaction()
+        rec_a_v2 = Record("A", "updated")
+        store.update(tx2, rec_a_v2)
+        # ensure key was set correctly
+        self.assertEqual(rec_a_v2.key, "A_2")
+
+        # ─── Read in the same txn should see A#2 ──────────────────────
+        visible = {r.id: r.key for r in store.read(tx2)}
+        self.assertDictEqual(visible, {"A": "A_2"})
+
+        
 if __name__ == "__main__":
     unittest.main()
