@@ -30,3 +30,19 @@ def compute_top_k(query, candidates, k=5, metric="cosine"):
         {"key": keys[i], "score": float(distances[i])}
         for i in top_k_indices
     ]
+
+def get_top_k_keys(query_vector, candidates, k=5, metric="cosine"):
+    """
+    Returns only the keys of the top-k closest vectors to the query.
+
+    Args:
+        query_vector (list of float): The query embedding.
+        candidates (list of dict): Each dict should have 'key' and 'vector'.
+        k (int): Number of top results to return.
+        metric (str): Similarity metric (default: "cosine").
+
+    Returns:
+        list of str: Keys of the top-k most similar vectors.
+    """
+    top_k_results = compute_top_k(query_vector, candidates, k=k, metric=metric)
+    return [result["key"] for result in top_k_results]
