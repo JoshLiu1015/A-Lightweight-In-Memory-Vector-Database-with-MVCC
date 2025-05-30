@@ -4,6 +4,7 @@ import math
 from record import Record
 from transaction import Transaction, TransactionStatus
 from vector_utils import convert_text_to_vector, send_vector
+from vector_search import utils, vector_store
 
 class Store:
     def __init__(self):
@@ -44,9 +45,9 @@ class Store:
                     r for r in txn.snapshot_data if r.id != record.id
                 ] + [record]
 
-
-            vector = convert_text_to_vector(record.value)
-            send_vector(record.id, vector)
+            
+            vector = utils.string_to_vector(record.value)
+            vector_store.add_vector(record.key, vector)
 
     def update(self, txn_id: int, record: Record) -> None:
         record.begin_ts = txn_id
@@ -78,9 +79,8 @@ class Store:
                     r for r in txn.snapshot_data if r.id != record.id
                 ] + [record]
 
-
-            vector = convert_text_to_vector(record.value)
-            send_vector(record.id, vector)
+            vector = utils.string_to_vector(record.value)
+            vector_store.add_vector(record.key, vector)
     
     def delete(self, txn_id: int, record_id: str) -> None:
         with self.lock:
