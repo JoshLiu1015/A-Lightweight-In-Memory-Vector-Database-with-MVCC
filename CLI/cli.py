@@ -7,12 +7,12 @@ from sentence_transformers import SentenceTransformer
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
-from mvcc.store import Store
+from mvcc.store import get_store
 from mvcc.record import Record
 
 
 def main():
-    store = Store()
+    store = get_store()
     
     print("Vector DB CLI started. Commands: insert <id>, update <id>, delete <id>, query, exit")
     

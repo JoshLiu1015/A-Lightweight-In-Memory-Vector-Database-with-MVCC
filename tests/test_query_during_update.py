@@ -13,30 +13,11 @@ Idea:
 Expected Result:
 - Reader sees the committed versions of "A" and "B", not the uncommitted updates
 """
-
-import sys
-import os
-import threading
-import time
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from mvcc.store import Store
 from mvcc.record import Record
 
-def updater(store):
-    tid = store.begin_transaction()
-    store.update(tid, Record("A", "second version"))
-    time.sleep(1)
-    store.commit_transaction(tid)
-
-def reader(store):
-    tid = store.begin_transaction()
-    results = {r.id: r.value for r in store.read(tid)}
-    print("Reader sees:", results)
-    store.commit_transaction(tid)
-
-def main():
+def test_query_during_update():
     store = Store()
-
     # Initial insert and commit
     txn1 = store.begin_transaction()
     store.insert(txn1, Record("A", "first version"))
@@ -49,24 +30,24 @@ def main():
     store.update(txn2, Record("B", "second version"))
     print("User1 updated A and B (not committed).")
 
-    # Concurrent read
+    # Concurrent read (should not see uncommitted updates)
     txn3 = store.begin_transaction()
     results = store.read(txn3)
     store.commit_transaction(txn3)
-
     print("User2 read during uncommitted updates:")
     for r in results:
         print(" ", r.id, "→", r.value)
 
-    # Start updater thread
-    t1 = threading.Thread(target=updater, args=(store,))
-    t1.start()
-    # Give updater a head start, then read
-    time.sleep(0.2)
-    reader(store)
-    t1.join()
-    # Read again after update
-    reader(store)
+    # Now commit the updates
+    store.commit_transaction(txn2)
+
+    # Read again (should see updated values)
+    txn4 = store.begin_transaction()
+    results2 = store.read(txn4)
+    store.commit_transaction(txn4)
+    print("User2 read after commit:")
+    for r in results2:
+        print(" ", r.id, "→", r.value)
 
 if __name__ == "__main__":
-    main()
+    test_query_during_update()

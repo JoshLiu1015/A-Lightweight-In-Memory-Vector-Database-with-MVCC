@@ -14,36 +14,25 @@ Expected Result:
 - The other raises an exception
 """
 
-import sys
-import os
-import threading
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from mvcc.store import Store
 from mvcc.record import Record
 
-def user1(store):
-    tid = store.begin_transaction()
+def test_concurrent_insert_same_key():
+    store = Store()
+    tid1 = store.begin_transaction()
+    tid2 = store.begin_transaction()
     try:
-        store.insert(tid, Record("A", "hehehe"))
+        store.insert(tid1, Record("A", "hehehe"))
         print("User1 inserted A.")
     except Exception as e:
         print("User1 insert failed:", e)
-    store.commit_transaction(tid)
-
-def user2(store):
-    tid = store.begin_transaction()
     try:
-        store.insert(tid, Record("A", "i look good"))
+        store.insert(tid2, Record("A", "i look good"))
         print("User2 inserted A.")
     except Exception as e:
         print("User2 insert failed:", e)
-    store.commit_transaction(tid)
+    store.commit_transaction(tid1)
+    store.commit_transaction(tid2)
 
 if __name__ == "__main__":
-    store = Store()
-    t1 = threading.Thread(target=user1, args=(store,))
-    t2 = threading.Thread(target=user2, args=(store,))
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
+    test_concurrent_insert_same_key()

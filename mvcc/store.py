@@ -3,7 +3,7 @@ import time
 import math
 from .record import Record
 from .transaction import Transaction, TransactionStatus
-from vector_utils import convert_text_to_vector, send_vector
+from .vector_utils import convert_text_to_vector, send_vector
 
 class Store:
     def __init__(self):
@@ -130,3 +130,11 @@ class Store:
                     current = current.next
 
             txn.status = TransactionStatus.COMMITTED
+
+_store_instance = None
+
+def get_store():
+    global _store_instance
+    if _store_instance is None:
+        _store_instance = Store()
+    return _store_instance

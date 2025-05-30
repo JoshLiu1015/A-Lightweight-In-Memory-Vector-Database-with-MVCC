@@ -14,44 +14,26 @@ Expected Result:
 - A follow-up read should show both records "A" and "B"
 """
 
-import sys
-import os
-import threading
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from mvcc.store import Store
 from mvcc.record import Record
 
-def user1(store):
-    tid = store.begin_transaction()
-    try:
-        store.insert(tid, Record("A", "how are you"))
-        print("User1 inserted A.")
-    except Exception as e:
-        print("User1 insert failed:", e)
-    store.commit_transaction(tid)
-
-def user2(store):
-    tid = store.begin_transaction()
-    try:
-        store.insert(tid, Record("B", "i am fine"))
-        print("User2 inserted B.")
-    except Exception as e:
-        print("User2 insert failed:", e)
-    store.commit_transaction(tid)
-
-if __name__ == "__main__":
+def test_concurrent_insert_different_keys():
     store = Store()
-    t1 = threading.Thread(target=user1, args=(store,))
-    t2 = threading.Thread(target=user2, args=(store,))
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
+    tid1 = store.begin_transaction()
+    tid2 = store.begin_transaction()
+    store.insert(tid1, Record("A", "how are you"))
+    print("User1 inserted A.")
+    store.insert(tid2, Record("B", "i am fine"))
+    print("User2 inserted B.")
+    store.commit_transaction(tid1)
+    store.commit_transaction(tid2)
 
-    txn3 = store.begin_transaction()
-    results = store.read(txn3)
-    store.commit_transaction(txn3)
-
+    tid3 = store.begin_transaction()
+    results = store.read(tid3)
+    store.commit_transaction(tid3)
     print("Records visible after both commits:")
     for r in results:
-        print(" ", r.id)
+        print(" ", r.id, "→", r.value)
+
+if __name__ == "__main__":
+    test_concurrent_insert_different_keys()
