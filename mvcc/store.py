@@ -35,6 +35,16 @@ class Store:
             if record.id in self.records:
                 raise Exception(f"record with ID {record.id} already exists")
             self.records[record.id] = record
+
+            # update the transaction's snapshot data
+            txn = self.transactions[txn_id]
+            if getattr(txn, "snapshot_data", None) is not None:
+                # replace any older version of this key in the snapshot
+                txn.snapshot_data = [
+                    r for r in txn.snapshot_data if r.id != record.id
+                ] + [record]
+
+
             vector = convert_text_to_vector(record.value)
             send_vector(record.id, vector)
 
@@ -61,6 +71,14 @@ class Store:
             head = self.records[record.id]
             record.next = head
             self.records[record.id] = record
+
+            txn = self.transactions[txn_id]
+            if getattr(txn, "snapshot_data", None) is not None:
+                txn.snapshot_data = [
+                    r for r in txn.snapshot_data if r.id != record.id
+                ] + [record]
+
+
             vector = convert_text_to_vector(record.value)
             send_vector(record.id, vector)
     
