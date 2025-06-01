@@ -18,7 +18,28 @@ model = SentenceTransformer("hkunlp/instructor-xl")
 def string_to_vector(text):
     return model.encode(text).tolist()
 
-def compute_top_k(query, candidates, k=5, metric="cosine"):
+def compute_top_k(query, candidates, k=5, metric="cosine", valid_keys=None):
+    """
+    Computes the top-k closest vectors to the query.
+
+    Args:
+        query (list of float): The query vector.
+        candidates (list of dict): Each dict should have 'key' and 'vector'.
+        k (int): Number of top results to return.
+        metric (str): Distance metric to use (default: "cosine").
+        valid_keys (list of str, optional): If provided, only consider candidates whose keys are in this list.
+
+    Returns:
+        list of dict: Top-k results with 'key' and 'score'.
+    """
+
+    # Filter candidates if valid_keys is provided
+    if valid_keys is not None:
+        candidates = [c for c in candidates if c["key"] in valid_keys]
+
+    if not candidates:
+        return []
+
     keys = [c["key"] for c in candidates]
     vectors = np.array([c["vector"] for c in candidates])
     query_vec = np.array(query)
@@ -30,6 +51,7 @@ def compute_top_k(query, candidates, k=5, metric="cosine"):
         {"key": keys[i], "score": float(distances[i])}
         for i in top_k_indices
     ]
+
 
 def get_top_k_keys(query_vector, candidates, k=5, metric="cosine"):
     """
