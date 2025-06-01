@@ -18,7 +18,7 @@ add_vector("doc4", string_to_vector("entertainment: Taylor Swift announces new w
 add_vector("doc5", string_to_vector("science: NASA’s James Webb discovers water on distant planet"))
 add_vector("doc6", string_to_vector("finance: inflation cools, Fed signals rate pause"))
 add_vector("doc7", string_to_vector("health: doctors recommend 7–9 hours of sleep for cardiovascular"))
-print(get_all_vectors())
+add_vector("doc8", string_to_vector("fitness: research links poor sleep to increased leg disease risk"))
 print()
 
 # Create a query vector
@@ -28,10 +28,18 @@ print("=== Query vector ===")
 print(query_vec)
 print()
 
-# Compute top-k matches
-print("=== Top-k results ===")
-top_k_results = compute_top_k(query_vec, get_all_vectors(), k=2)
+# Compute top-k matches without key filter
+print("=== Top-k results (no filter) ===")
+top_k_results = compute_top_k(query_vec, get_all_vectors(), k=3)
 for result in top_k_results:
+    print(f"Key: {result['key']}, Score: {result['score']:.4f}")
+print()
+
+# Compute top-k matches WITH valid_keys filter
+valid_keys = ["doc3", "doc7", "doc8"]  # Only consider these keys
+print(f"=== Top-k results (filtered to valid keys: {valid_keys}) ===")
+filtered_results = compute_top_k(query_vec, get_all_vectors(), k=2, valid_keys=valid_keys)
+for result in filtered_results:
     print(f"Key: {result['key']}, Score: {result['score']:.4f}")
 print()
 
