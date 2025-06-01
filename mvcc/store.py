@@ -81,15 +81,27 @@ class Store:
 
             vector = utils.string_to_vector(record.value)
             vector_store.add_vector(record.key, vector)
-    
+
     def delete(self, txn_id: int, record_id: str) -> None:
+        # treat delete as a new tombstone version
         with self.lock:
             head = self.records.get(record_id)
             if head is None:
                 raise Exception(f"record with ID {record_id} not found")
-            head.deleted = True
-            head.end_ts = txn_id
-            self.records[record_id] = head
+            tombstone = Record(record_id, "")
+            tombstone.begin_ts = txn_id
+            tombstone.end_ts = math.inf
+            tombstone.deleted = True
+            tombstone.created_by_txn_id = txn_id
+            tombstone.next = head
+            self.records[record_id] = tombstone
+            # update this txn's snapshot to hide deleted key
+            txn = self.transactions[txn_id]
+            if getattr(txn, "snapshot_data", None) is not None:
+                txn.snapshot_data = [
+                    r for r in txn.snapshot_data if r.id != record_id
+                ]
+
 
     def read(self, txn_id: int) -> list[Record]:
         with self.lock:
@@ -130,3 +142,22 @@ class Store:
                     current = current.next
 
             txn.status = TransactionStatus.COMMITTED
+
+    def abort_transaction(self, txn_id: int) -> None:
+        with self.lock:
+            txn = self.transactions.get(txn_id)
+            if not txn:
+                raise Exception(f"transaction {txn_id} not found")
+            # remove any versions created by this txn from the chains
+            for key, head in list(self.records.items()):
+                if head.created_by_txn_id == txn_id:
+                    self.records[key] = head.next
+                else:
+                    prev = head
+                    curr = head.next
+                    while curr:
+                        if curr.created_by_txn_id == txn_id:
+                            prev.next = curr.next
+                            break
+                        prev, curr = curr, curr.next
+            txn.status = TransactionStatus.ABORTED
