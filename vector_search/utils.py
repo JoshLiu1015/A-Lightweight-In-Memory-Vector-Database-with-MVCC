@@ -4,6 +4,7 @@ os.environ["USE_TF"] = "0"
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from scipy.spatial.distance import cdist
+from vector_search.vector_store import get_all_vectors
 
 """
 Utility functions for vector encoding and similarity search.
@@ -18,13 +19,12 @@ model = SentenceTransformer("hkunlp/instructor-xl")
 def string_to_vector(text):
     return model.encode(text).tolist()
 
-def compute_top_k(query, candidates, k=5, metric="cosine", valid_keys=None):
+def get_top_k_keys(query, valid_keys, k, metric="cosine"):
     """
     Computes the top-k closest vectors to the query.
 
     Args:
         query (list of float): The query vector.
-        candidates (list of dict): Each dict should have 'key' and 'vector'.
         k (int): Number of top results to return.
         metric (str): Distance metric to use (default: "cosine").
         valid_keys (list of str, optional): If provided, only consider candidates whose keys are in this list.
@@ -33,9 +33,11 @@ def compute_top_k(query, candidates, k=5, metric="cosine", valid_keys=None):
         list of dict: Top-k results with 'key' and 'score'.
     """
 
-    # Filter candidates if valid_keys is provided
-    if valid_keys is not None:
-        candidates = [c for c in candidates if c["key"] in valid_keys]
+    keys_and_vectors = get_all_vectors()
+    # print(f"Total vectors in store: {len(keys_and_vectors)}")
+    
+    candidates = [c for c in keys_and_vectors if c["key"] in valid_keys]
+    # print(f"Filtered candidates: {len(candidates)}")
 
     if not candidates:
         return []
@@ -45,26 +47,9 @@ def compute_top_k(query, candidates, k=5, metric="cosine", valid_keys=None):
     query_vec = np.array(query)
 
     distances = cdist([query_vec], vectors, metric=metric)[0]
+    # print(f"Distances: {distances}")
+
     top_k_indices = np.argsort(distances)[:k]
+    # print(f"Top {k} indices: {top_k_indices}")
 
-    return [
-        {"key": keys[i], "score": float(distances[i])}
-        for i in top_k_indices
-    ]
-
-
-def get_top_k_keys(query_vector, candidates, k=5, metric="cosine"):
-    """
-    Returns only the keys of the top-k closest vectors to the query.
-
-    Args:
-        query_vector (list of float): The query embedding.
-        candidates (list of dict): Each dict should have 'key' and 'vector'.
-        k (int): Number of top results to return.
-        metric (str): Similarity metric (default: "cosine").
-
-    Returns:
-        list of str: Keys of the top-k most similar vectors.
-    """
-    top_k_results = compute_top_k(query_vector, candidates, k=k, metric=metric)
-    return [result["key"] for result in top_k_results]
+    return [keys[i] for i in top_k_indices]

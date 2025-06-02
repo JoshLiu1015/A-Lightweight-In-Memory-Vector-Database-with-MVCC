@@ -1,9 +1,15 @@
+import sys
+import os
+
+# Insert the parent directory (project root) at the front of sys.path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, project_root)
+
 import threading
 import time
 import math
 from record import Record
 from transaction import Transaction, TransactionStatus
-from vector_utils import convert_text_to_vector, send_vector
 from vector_search import utils, vector_store
 
 class Store:
@@ -21,7 +27,7 @@ class Store:
             self.transactions[txn.id] = txn
 
             # Initialize snapshot data
-            self.read(txn.id)
+            self.read(txn.id, "", 0)
 
             return txn.id
 
@@ -103,14 +109,18 @@ class Store:
                 ]
 
 
-    def read(self, txn_id: int) -> list[Record]:
+    def read(self, txn_id: int, query: str, k: int) -> list[Record]:
         with self.lock:
             items = list(self.records.values())
             txns = dict(self.transactions)
             txn = txns.get(txn_id)
 
             if txn.snapshot_data:
-                return list(txn.snapshot_data)
+                query_vector = utils.string_to_vector(query)
+                return_keys = utils.get_top_k_keys(query_vector, [r.key for r in txn.snapshot_data], k=k)
+
+                return_values = [s for s in txn.snapshot_data if s.key in return_keys]
+                return return_values
 
         valid_records: list[Record] = []
         for head in items:
@@ -126,7 +136,12 @@ class Store:
                 current = current.next
 
         txn.snapshot_data = valid_records
-        return valid_records
+
+        query_vector = utils.string_to_vector(query)
+        return_keys = utils.get_top_k_keys(query_vector, [r.key for r in valid_records], k=k)
+
+        return_values = [s for s in valid_records if s.key in return_keys]
+        return return_values
 
     def commit_transaction(self, txn_id: int) -> None:
         with self.lock:
