@@ -13,7 +13,7 @@ def process_line(shell, line):
         shell.current_txn = shell.store.begin_transaction()
         return f"began T{shell.current_txn}"
     elif cmd == "insert":
-        key, value = args
+        key, value = args[0], " ".join(args[1:])
         shell.store.insert(shell.current_txn, Record(key, value))
         return "ok"
     elif cmd == "update":
