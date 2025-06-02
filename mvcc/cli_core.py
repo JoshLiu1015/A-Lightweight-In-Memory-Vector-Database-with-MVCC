@@ -1,10 +1,10 @@
-from mvcc.store import get_store
+from mvcc.store import Store
 from mvcc.record import Record
 
 class Shell:
     def __init__(self, user, store=None):
         self.user = user
-        self.store = store or get_store()
+        self.store = store 
         self.current_txn = None
 
 def process_line(shell, line):
@@ -17,7 +17,7 @@ def process_line(shell, line):
         shell.store.insert(shell.current_txn, Record(key, value))
         return "ok"
     elif cmd == "update":
-        key, value = args
+        key, value = args[0], " ".join(args[1:])
         shell.store.update(shell.current_txn, Record(key, value))
         return "ok"
     elif cmd == "delete":
@@ -29,7 +29,8 @@ def process_line(shell, line):
         shell.current_txn = None
         return "committed"
     elif cmd == "query":
-        return repr({r.id: r.value for r in shell.store.read(shell.current_txn)})
+        # Show all records by default
+        return repr({r.id: r.value for r in shell.store.read(shell.current_txn, "", 100)})
     else:
         return f"Unknown command: {cmd}"
 

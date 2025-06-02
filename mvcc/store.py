@@ -1,3 +1,10 @@
+import sys
+import os
+
+# Insert the parent directory (project root) at the front of sys.path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, project_root)
+
 import threading
 import time
 import math
@@ -21,7 +28,7 @@ class Store:
             self.transactions[txn.id] = txn
 
             # Initialize snapshot data
-            self.read(txn.id)
+            self.read(txn.id, "", 0)
 
             return txn.id
 
@@ -81,24 +88,40 @@ class Store:
 
             vector = utils.string_to_vector(record.value)
             vector_store.add_vector(record.key, vector)
-    
+
     def delete(self, txn_id: int, record_id: str) -> None:
+        # treat delete as a new tombstone version
         with self.lock:
             head = self.records.get(record_id)
             if head is None:
                 raise Exception(f"record with ID {record_id} not found")
-            head.deleted = True
-            head.end_ts = txn_id
-            self.records[record_id] = head
+            tombstone = Record(record_id, "")
+            tombstone.begin_ts = txn_id
+            tombstone.end_ts = math.inf
+            tombstone.deleted = True
+            tombstone.created_by_txn_id = txn_id
+            tombstone.next = head
+            self.records[record_id] = tombstone
+            # update this txn's snapshot to hide deleted key
+            txn = self.transactions[txn_id]
+            if getattr(txn, "snapshot_data", None) is not None:
+                txn.snapshot_data = [
+                    r for r in txn.snapshot_data if r.id != record_id
+                ]
 
-    def read(self, txn_id: int) -> list[Record]:
+
+    def read(self, txn_id: int, query: str, k: int) -> list[Record]:
         with self.lock:
             items = list(self.records.values())
             txns = dict(self.transactions)
             txn = txns.get(txn_id)
 
             if txn.snapshot_data:
-                return list(txn.snapshot_data)
+                query_vector = utils.string_to_vector(query)
+                return_keys = utils.get_top_k_keys(query_vector, [r.key for r in txn.snapshot_data], k=k)
+
+                return_values = [s for s in txn.snapshot_data if s.key in return_keys]
+                return return_values
 
         valid_records: list[Record] = []
         for head in items:
@@ -114,7 +137,12 @@ class Store:
                 current = current.next
 
         txn.snapshot_data = valid_records
-        return valid_records
+
+        query_vector = utils.string_to_vector(query)
+        return_keys = utils.get_top_k_keys(query_vector, [r.key for r in valid_records], k=k)
+
+        return_values = [s for s in valid_records if s.key in return_keys]
+        return return_values
 
     def commit_transaction(self, txn_id: int) -> None:
         with self.lock:
@@ -131,10 +159,21 @@ class Store:
 
             txn.status = TransactionStatus.COMMITTED
 
-_store_instance = None
-
-def get_store():
-    global _store_instance
-    if _store_instance is None:
-        _store_instance = Store()
-    return _store_instance
+    def abort_transaction(self, txn_id: int) -> None:
+        with self.lock:
+            txn = self.transactions.get(txn_id)
+            if not txn:
+                raise Exception(f"transaction {txn_id} not found")
+            # remove any versions created by this txn from the chains
+            for key, head in list(self.records.items()):
+                if head.created_by_txn_id == txn_id:
+                    self.records[key] = head.next
+                else:
+                    prev = head
+                    curr = head.next
+                    while curr:
+                        if curr.created_by_txn_id == txn_id:
+                            prev.next = curr.next
+                            break
+                        prev, curr = curr, curr.next
+            txn.status = TransactionStatus.ABORTED
