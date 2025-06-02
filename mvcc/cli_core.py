@@ -1,0 +1,41 @@
+from mvcc.store import get_store
+from mvcc.record import Record
+
+class Shell:
+    def __init__(self, user, store=None):
+        self.user = user
+        self.store = store or get_store()
+        self.current_txn = None
+
+def process_line(shell, line):
+    cmd, *args = line.strip().split()
+    if cmd == "begin":
+        shell.current_txn = shell.store.begin_transaction()
+        return f"began T{shell.current_txn}"
+    elif cmd == "insert":
+        key, value = args
+        shell.store.insert(shell.current_txn, Record(key, value))
+        return "ok"
+    elif cmd == "update":
+        key, value = args
+        shell.store.update(shell.current_txn, Record(key, value))
+        return "ok"
+    elif cmd == "delete":
+        key = args[0]
+        shell.store.delete(shell.current_txn, key)
+        return "ok"
+    elif cmd == "commit":
+        shell.store.commit_transaction(shell.current_txn)
+        shell.current_txn = None
+        return "committed"
+    elif cmd == "query":
+        return repr({r.id: r.value for r in shell.store.read(shell.current_txn)})
+    else:
+        return f"Unknown command: {cmd}"
+
+def run_script(script, user="anon", store=None):
+    shell = Shell(user, store)
+    outputs = []
+    for line in script.strip().splitlines():
+        outputs.append(process_line(shell, line))
+    return outputs
