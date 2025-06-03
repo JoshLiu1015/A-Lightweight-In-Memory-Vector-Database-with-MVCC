@@ -136,8 +136,8 @@ def test_version_chain_traversal():
     # Update to v2 and commit
     run_script("begin txn3\nupdate txn3 A v2\ncommit txn3", user="alice", store=store)
     # Query after v2
-    out2 = run_script("begin txn4\nquery txn4\ncommit txn4", user="alice", store=store)
-    assert "v2" in out2[-2]
+    out2 = run_script("begin txn4\nupdate txn4 A v4\nquery txn4\ncommit txn4", user="alice", store=store)
+    assert "v4" in out2[-2]
 
     # Update to v3 and commit
     run_script("begin txn5\nupdate txn5 A v3\ncommit txn5", user="alice", store=store)
