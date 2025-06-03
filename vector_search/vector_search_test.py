@@ -28,9 +28,12 @@ print("=== Query vector ===")
 print(query_vec)
 print()
 
-# Compute top-k matches without key filter
+# Prepare valid keys for unrestricted search (all keys)
+all_keys = [v["key"] for v in get_all_vectors()]
+
+# Compute top-k matches using all keys
 print("=== Top-k results (no filter) ===")
-top_k_results = compute_top_k(query_vec, get_all_vectors(), k=3)
+top_k_results = compute_top_k(query_vec, k=3, valid_keys=all_keys)
 for result in top_k_results:
     print(f"Key: {result['key']}, Score: {result['score']:.4f}")
 print()
@@ -38,12 +41,12 @@ print()
 # Compute top-k matches WITH valid_keys filter
 valid_keys = ["doc3", "doc7", "doc8"]  # Only consider these keys
 print(f"=== Top-k results (filtered to valid keys: {valid_keys}) ===")
-filtered_results = compute_top_k(query_vec, get_all_vectors(), k=2, valid_keys=valid_keys)
+filtered_results = compute_top_k(query_vec, k=2, valid_keys=valid_keys)
 for result in filtered_results:
     print(f"Key: {result['key']}, Score: {result['score']:.4f}")
 print()
 
-# Print just the keys from the top-k results
+# Print just the keys from the top-k results (filtered)
 print("=== Top-k keys only ===")
-top_k_keys = get_top_k_keys(query_vec, get_all_vectors(), k=2)
+top_k_keys = get_top_k_keys(query_vec, k=2, valid_keys=valid_keys)
 print(top_k_keys)
