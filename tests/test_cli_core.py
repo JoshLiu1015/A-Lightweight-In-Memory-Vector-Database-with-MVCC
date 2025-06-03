@@ -100,8 +100,7 @@ def test_write_write_conflict():
         begin
         update A aliceval
         commit
-    """
-    bob_script = """
+
         begin
         update A bobval
         commit

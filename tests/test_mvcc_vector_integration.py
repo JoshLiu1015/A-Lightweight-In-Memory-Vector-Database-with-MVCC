@@ -1,7 +1,7 @@
 from mvcc.cli_core import run_script
 from vector_search.vector_store import get_all_vectors, reset_store
 from mvcc.store import Store
-from vector_search.utils import string_to_vector, compute_top_k
+from vector_search.utils import string_to_vector, get_top_k_keys
 
 def test_mvcc_insert_triggers_vector_store():
     reset_store()
@@ -31,7 +31,7 @@ def test_mvcc_query_vector_search():
     """
     run_script(script, user="alice", store=store)
     query_vec = string_to_vector("Apple announces new smartphone")
-    results = compute_top_k(query_vec, get_all_vectors(), k=2)
+    results = get_top_k_keys(query_vec, get_all_vectors(), k=2)
     print("Vector search results:", results)
     assert any(r["key"].startswith("doc2") for r in results)
 
@@ -49,9 +49,8 @@ def test_mvcc_update_triggers_vector_update():
     run_script(script, user="alice", store=store)
     # Query with a string similar to the new value
     query_vec = string_to_vector("updated value")
-    results = compute_top_k(query_vec, get_all_vectors(), k=1)
+    results = get_top_k_keys(query_vec, get_all_vectors(), k=1)
     assert any(r["key"].startswith("doc1") for r in results)
-
 
 
 
@@ -89,7 +88,7 @@ def test_mvcc_snapshot_isolation_vector_search():
     run_script(script, user="bob", store=store)
     # Query from a new transaction (should see only committed version)
     query_vec = string_to_vector("committed version")
-    results = compute_top_k(query_vec, get_all_vectors(), k=1)
+    results = get_top_k_keys(query_vec, get_all_vectors(), k=1)
     assert any(r["key"].startswith("doc1") for r in results)
 
 def test_mvcc_multiple_users_multiple_keys():
@@ -108,7 +107,7 @@ def test_mvcc_valid_keys_filter():
     run_script("begin\ninsert doc1 apple\ninsert doc2 banana\ninsert doc3 cherry\ncommit", user="alice", store=store)
     query_vec = string_to_vector("fruit")
     all_vectors = get_all_vectors()
-    results = compute_top_k(query_vec, all_vectors, k=3, valid_keys=["doc1_1", "doc3_1"])
+    results = get_top_k_keys(query_vec, all_vectors, k=3, valid_keys=["doc1_1", "doc3_1"])
     keys = [r["key"] for r in results]
     assert all(k in ["doc1_1", "doc3_1"] for k in keys)
 
@@ -123,7 +122,7 @@ def test_mvcc_reinsert_after_delete():
     run_script("begin\ninsert doc1 second\ncommit", user="alice", store=store)
     # Query with a string similar to the new value
     query_vec = string_to_vector("second")
-    results = compute_top_k(query_vec, get_all_vectors(), k=1)
+    results = get_top_k_keys(query_vec, get_all_vectors(), k=1)
     assert any(r["key"].startswith("doc1") for r in results)
 
 def test_mvcc_query_after_delete_same_txn():

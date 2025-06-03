@@ -29,8 +29,9 @@ def process_line(shell, line):
         shell.current_txn = None
         return "committed"
     elif cmd == "query":
-        # Show all records by default
-        return repr({r.id: r.value for r in shell.store.read(shell.current_txn, "", 100)})
+        # If a query string is provided, use it; otherwise, use empty string
+        query_str = " ".join(args) if args else ""
+        return repr({r.id: r.value for r in shell.store.read(shell.current_txn, query_str, 100)})
     else:
         return f"Unknown command: {cmd}"
 
