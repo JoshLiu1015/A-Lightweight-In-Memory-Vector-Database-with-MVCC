@@ -4,30 +4,37 @@ from mvcc.record import Record
 class Shell:
     def __init__(self, user, store=None):
         self.user = user
-        self.store = store 
+        self.store = store
         self.current_txn = None
+        self.txn_map = {}  # Maps user txn names to actual txn IDs
 
 def process_line(shell, line):
     cmd, *args = line.strip().split()
     if cmd == "begin":
-        shell.current_txn = shell.store.begin_transaction()
-        return f"began T{shell.current_txn}"
+        txn_name = args[0] if args else "default"
+        txn_id = shell.store.begin_transaction()
+        shell.txn_map[txn_name] = txn_id
+        shell.current_txn = txn_id  # Optionally set as current
+        return f"began {txn_name} T{txn_id}"
     elif cmd == "insert":
         key, value = args[0], " ".join(args[1:])
         shell.store.insert(shell.current_txn, Record(key, value))
         return "ok"
     elif cmd == "update":
-        key, value = args[0], " ".join(args[1:])
-        shell.store.update(shell.current_txn, Record(key, value))
+        txn_name = args[0]
+        key, value = args[1], " ".join(args[2:])
+        txn_id = shell.txn_map[txn_name]
+        shell.store.update(txn_id, Record(key, value))
         return "ok"
     elif cmd == "delete":
         key = args[0]
         shell.store.delete(shell.current_txn, key)
         return "ok"
     elif cmd == "commit":
-        shell.store.commit_transaction(shell.current_txn)
-        shell.current_txn = None
-        return "committed"
+        txn_name = args[0] if args else "default"
+        txn_id = shell.txn_map.get(txn_name, shell.current_txn)
+        shell.store.commit_transaction(txn_id)
+        return f"committed {txn_name} T{txn_id}"
     elif cmd == "query":
         # If a query string is provided, use it; otherwise, use empty string
         query_str = " ".join(args) if args else ""

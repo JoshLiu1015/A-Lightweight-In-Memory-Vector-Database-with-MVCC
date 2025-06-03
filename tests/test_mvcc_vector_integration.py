@@ -28,12 +28,14 @@ def test_mvcc_query_vector_search():
         insert doc1 The quick brown fox jumps over the lazy dog
         insert doc2 Apple unveils new iPhone at tech event
         commit
+        begin
+        query Apple smartphone
+        commit
     """
-    run_script(script, user="alice", store=store)
-    query_vec = string_to_vector("Apple announces new smartphone")
-    results = get_top_k_keys(query_vec, get_all_vectors(), k=2)
-    print("Vector search results:", results)
-    assert any(r["key"].startswith("doc2") for r in results)
+    out = run_script(script, user="alice", store=store)
+    print("Query output:", out[-2])
+    # Check that doc2 is in the query output
+    assert "doc2" in out[-2]
 
 def test_mvcc_update_triggers_vector_update():
     reset_store()
