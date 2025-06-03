@@ -36,9 +36,15 @@ def process_line(shell, line):
         shell.store.commit_transaction(txn_id)
         return f"committed {txn_name} T{txn_id}"
     elif cmd == "query":
-        # If a query string is provided, use it; otherwise, use empty string
-        query_str = " ".join(args) if args else ""
-        return repr({r.id: r.value for r in shell.store.read(shell.current_txn, query_str, 100)})
+        # If a txn name is provided, use it; otherwise, use current_txn
+        if args:
+            txn_name = args[0]
+            txn_id = shell.txn_map.get(txn_name, shell.current_txn)
+            query_str = " ".join(args[1:]) if len(args) > 1 else ""
+        else:
+            txn_id = shell.current_txn
+            query_str = ""
+        return repr({r.id: r.value for r in shell.store.read(txn_id, query_str, 100)})
     else:
         return f"Unknown command: {cmd}"
 

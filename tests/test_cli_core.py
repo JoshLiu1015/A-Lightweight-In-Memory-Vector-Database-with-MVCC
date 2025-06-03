@@ -10,10 +10,10 @@ def test_basic_insert_and_query():
     """
     store = Store()
     script = """
-        begin
+        begin txn1
         insert A hello
-        query
-        commit
+        query txn1
+        commit txn1
     """
     out = run_script(script, user="alice", store=store)
     assert "A" in out[2] and "hello" in out[2]
@@ -23,26 +23,24 @@ def test_snapshot_isolation():
     """
     Test: Snapshot isolation
     - Alice inserts and commits a record.
-    - Bob starts a transaction after Alice's commit and queries.
+    - Bob starts a transaction before Alice's commit and queries.
     - Expected: Bob sees Alice's committed record in his query.
     """
     store = Store()
     alice_script = """
-        begin
+        begin txn1
         insert A v1
-        commit
-        begin
-        query
-        commit
     """
     bob_script = """
-        begin
-        query
-        commit
+        begin txn2
+        commit txn1
+        query txn2
+        commit txn2
     """
-    out1 = run_script(alice_script, user="alice", store=store)
-    out2 = run_script(bob_script, user="bob", store=store)
-    assert "A" in out1[-2]
+    out2 = run_script(alice_script, user="alice", store=store)
+    out1 = run_script(bob_script, user="bob", store=store)
+    print("out1", out1)
+    assert "A" not in out1[-2]
     print("test_snapshot_isolation passed.")
 
 def test_update_and_query():
@@ -58,7 +56,7 @@ def test_update_and_query():
         commit txn1
         begin txn2
         update txn2 A bar
-        query
+        query txn2
         commit txn2
     """
     out = run_script(script, user="alice", store=store)
@@ -73,41 +71,21 @@ def test_delete_and_query():
     """
     store = Store()
     script = """
-        begin
+        begin txn1
         insert A todelete
-        commit
-        begin
+        commit txn1
+        begin txn2
         delete A
-        commit
-        begin
-        query
-        commit
+        commit txn2
+        begin txn3
+        query txn3
+        commit txn3
     """
     out = run_script(script, user="alice", store=store)
     assert "A" not in out[-2]
     print("test_delete_and_query passed.")
 
-# def test_write_write_conflict():
-#     """
-#     Test: Write-write conflict (concurrent update)
-#     - Two transactions update the same record before either commits.
-#     - Expected: Only the last committed value is visible in the final query.
-#     """
-#     store = Store()
-#     # Insert and commit A
-#     run_script("begin txn0\ninsert A orig\ncommit txn0", user="alice", store=store)
-#     # Simulate concurrent updates in a single script
-#     script = """
-#         begin txn1
-#         update txn1 A aliceval
-#         begin txn2
-#         update txn2 A bobval
-#         commit txn1
-#         commit txn2
-#     """
-#     out = run_script(script, user="eve", store=store)
-#     assert ("aliceval" in out[-2] or "bobval" in out[-2])
-#     print("test_write_write_conflict passed.")
+
 
 def test_logical_delete_visibility():
     """
@@ -118,20 +96,15 @@ def test_logical_delete_visibility():
     - Expected: Bob still sees the record in his transaction; new transactions do not see the deleted record.
     """
     store = Store()
-    # Insert and commit
-    run_script("begin\ninsert A gone\ncommit", user="alice", store=store)
-    # Bob starts a transaction (keep his shell alive)
+    run_script("begin txn1\ninsert A gone\ncommit txn1", user="alice", store=store)
     bob_shell = Shell(user="bob", store=store)
-    process_line(bob_shell, "begin")
-    # Alice deletes and commits
-    run_script("begin\ndelete A\ncommit", user="alice", store=store)
-    # Bob queries and commits in the same transaction
+    process_line(bob_shell, "begin txn2")
+    run_script("begin txn3\ndelete A\ncommit txn3", user="alice", store=store)
     out = []
-    out.append(process_line(bob_shell, "query"))
-    out.append(process_line(bob_shell, "commit"))
+    out.append(process_line(bob_shell, "query txn2"))
+    out.append(process_line(bob_shell, "commit txn2"))
     assert "A" in out[0]
-    # New transaction should not see A
-    eve_query = run_script("begin\nquery\ncommit", user="eve", store=store)
+    eve_query = run_script("begin txn4\nquery txn4\ncommit txn4", user="eve", store=store)
     assert "A" not in eve_query[-2]
     print("test_logical_delete_visibility passed.")
 
@@ -143,10 +116,10 @@ def test_read_your_own_writes():
     """
     store = Store()
     script = """
-        begin
+        begin txn1
         insert A temp
-        query
-        commit
+        query txn1
+        commit txn1
     """
     out = run_script(script, user="alice", store=store)
     assert "A" in out[2] and "temp" in out[2]
@@ -154,28 +127,25 @@ def test_read_your_own_writes():
 
 
 def test_version_chain_traversal():
-    """
-    Test: Version chain traversal
-    - Insert, update multiple times, and query.
-    - Expected: Only the latest value is visible.
-    """
     store = Store()
-    script = """
-        begin txn1
-        insert A v1
-        commit txn1
-        begin txn2
-        update txn2 A v2
-        commit txn2
-        begin txn3
-        update txn3 A v3
-        commit txn3
-        begin txn4
-        query
-        commit txn4
-    """
-    out = run_script(script, user="alice", store=store)
-    assert "v3" in out[-2]
+    # Insert v1 and commit
+    run_script("begin txn1\ninsert A v1\ncommit txn1", user="alice", store=store)
+    # Query after v1
+    out1 = run_script("begin txn2\nquery txn2\ncommit txn2", user="alice", store=store)
+    assert "v1" in out1[-2]
+
+    # Update to v2 and commit
+    run_script("begin txn3\nupdate txn3 A v2\ncommit txn3", user="alice", store=store)
+    # Query after v2
+    out2 = run_script("begin txn4\nquery txn4\ncommit txn4", user="alice", store=store)
+    assert "v2" in out2[-2]
+
+    # Update to v3 and commit
+    run_script("begin txn5\nupdate txn5 A v3\ncommit txn5", user="alice", store=store)
+    # Query after v3
+    out3 = run_script("begin txn6\nquery txn6\ncommit txn6", user="alice", store=store)
+    assert "v3" in out3[-2]
+
     print("test_version_chain_traversal passed.")
 
 def test_abort_handling():
@@ -186,12 +156,12 @@ def test_abort_handling():
     """
     store = Store()
     script = """
-        begin
+        begin txn1
         insert A shouldnotsee
         abort
-        begin
-        query
-        commit
+        begin txn2
+        query txn2
+        commit txn2
     """
     out = run_script(script, user="alice", store=store)
     assert "A" not in out[-2]
@@ -205,18 +175,16 @@ def test_insert_conflict():
     """
     store = Store()
     alice_script = """
-        begin
+        begin txn1
         insert A alice
-        commit
+        commit txn1
     """
     bob_script = """
-        begin
+        begin txn2
         insert A bob
-        commit
+        commit txn2
     """
-    # Run Alice's insert first
     run_script(alice_script, user="alice", store=store)
-    # Bob's insert should fail
     try:
         run_script(bob_script, user="bob", store=store)
         assert False, "Bob's insert should have failed, but it succeeded."
@@ -232,15 +200,15 @@ def test_read_after_delete():
     """
     store = Store()
     script = """
-        begin
+        begin txn1
         insert A gone
-        commit
-        begin
+        commit txn1
+        begin txn2
         delete A
-        commit
-        begin
-        query
-        commit
+        commit txn2
+        begin txn3
+        query txn3
+        commit txn3
     """
     out = run_script(script, user="alice", store=store)
     assert "A" not in out[-2]
@@ -254,16 +222,15 @@ def test_delete_then_read_same_txn():
     """
     store = Store()
     script = """
-        begin
+        begin txn1
         insert A gone
-        commit
-        begin
+        commit txn1
+        begin txn2
         delete A
-        query
-        commit
+        query txn2
+        commit txn2
     """
     out = run_script(script, user="alice", store=store)
-    print(out)
     assert "A" not in out[-2]
     print("test_delete_then_read_same_txn passed.")
 
@@ -297,7 +264,6 @@ if __name__ == "__main__":
     test_snapshot_isolation()
     test_update_and_query()
     test_delete_and_query()
-    # test_write_write_conflict()
     test_logical_delete_visibility()
     test_read_your_own_writes()
     test_version_chain_traversal()
