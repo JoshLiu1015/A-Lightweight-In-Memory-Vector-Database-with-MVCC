@@ -39,7 +39,6 @@ def test_snapshot_isolation():
     """
     out2 = run_script(alice_script, user="alice", store=store)
     out1 = run_script(bob_script, user="bob", store=store)
-    print("out1", out1)
     assert "A" not in out1[-2]
     print("test_snapshot_isolation passed.")
 
