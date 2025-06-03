@@ -293,6 +293,7 @@ def test_delete_then_read_same_txn():
         commit
     """
     out = run_script(script, user="alice", store=store)
+    print(out)
     assert "A" not in out[-2]
     print("test_delete_then_read_same_txn passed.")
 

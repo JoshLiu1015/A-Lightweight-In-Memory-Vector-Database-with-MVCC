@@ -126,7 +126,13 @@ class Store:
         valid_records: list[Record] = []
         for head in items:
             current = head
+            tombstone_by_this_txn = False
+
             while current:
+                if current.created_by_txn_id == txn_id and current.deleted:
+                    tombstone_by_this_txn = True
+                    break
+
                 creator_txn = txns.get(current.created_by_txn_id)
                 if creator_txn and creator_txn.status == TransactionStatus.ACTIVE:
                     current = current.next
@@ -136,6 +142,8 @@ class Store:
                     break
                 current = current.next
 
+            if tombstone_by_this_txn:
+                continue
         txn.snapshot_data = valid_records
 
         query_vector = utils.string_to_vector(query)
