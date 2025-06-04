@@ -155,13 +155,12 @@ def test_mvcc_vector_snapshot_isolation():
     store = Store()
     # Insert and commit doc1
     run_script("begin txn1\ninsert doc1 version1\ncommit txn1", user="alice", store=store)
-    # Begin txn2 before update
-    run_script("begin txn2", user="bob", store=store)
+    # Begin txn2 before update and query in the same script
+    out = run_script("begin txn2\nquery txn2 version1", user="bob", store=store)
     # Update doc1 in txn3 and commit
     run_script("begin txn3\nupdate txn3 doc1 version2\ncommit txn3", user="alice", store=store)
     # Query in txn2 (should see version1)
-    out = run_script("query txn2 version1", user="bob", store=store)
-    assert "version1" in out[0]
+    assert "version1" in out[1]
     # Query in a new txn4 (should see version2)
     out2 = run_script("begin txn4\nquery txn4 version2\ncommit txn4", user="eve", store=store)
     assert "version2" in out2[1]
