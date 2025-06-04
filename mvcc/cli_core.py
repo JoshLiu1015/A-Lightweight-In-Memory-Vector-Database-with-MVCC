@@ -17,8 +17,10 @@ def process_line(shell, line):
         shell.current_txn = txn_id  # Optionally set as current
         return f"began {txn_name} T{txn_id}"
     elif cmd == "insert":
-        key, value = args[0], " ".join(args[1:])
-        shell.store.insert(shell.current_txn, Record(key, value))
+        txn_name = args[0]
+        key, value = args[1], " ".join(args[2:])
+        txn_id = shell.txn_map[txn_name]
+        shell.store.insert(txn_id, Record(key, value))
         return "ok"
     elif cmd == "update":
         txn_name = args[0]
@@ -27,14 +29,21 @@ def process_line(shell, line):
         shell.store.update(txn_id, Record(key, value))
         return "ok"
     elif cmd == "delete":
-        key = args[0]
-        shell.store.delete(shell.current_txn, key)
+        txn_name = args[0]
+        key = args[1]
+        txn_id = shell.txn_map[txn_name]
+        shell.store.delete(txn_id, key)
         return "ok"
     elif cmd == "commit":
         txn_name = args[0] if args else "default"
         txn_id = shell.txn_map.get(txn_name, shell.current_txn)
         shell.store.commit_transaction(txn_id)
         return f"committed {txn_name} T{txn_id}"
+    elif cmd == "abort":
+        txn_name = args[0] if args else "default"
+        txn_id = shell.txn_map.get(txn_name, shell.current_txn)
+        shell.store.abort_transaction(txn_id)
+        return f"aborted {txn_name} T{txn_id}"
     elif cmd == "query":
         # If a txn name is provided, use it; otherwise, use current_txn
         if args:

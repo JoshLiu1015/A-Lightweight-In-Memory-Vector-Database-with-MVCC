@@ -11,7 +11,7 @@ def test_basic_insert_and_query():
     store = Store()
     script = """
         begin txn1
-        insert A hello
+        insert txn1 A hello
         query txn1
         commit txn1
     """
@@ -29,7 +29,7 @@ def test_snapshot_isolation():
     store = Store()
     alice_script = """
         begin txn1
-        insert A v1
+        insert txn1 A v1
     """
     bob_script = """
         begin txn2
@@ -51,7 +51,7 @@ def test_update_and_query():
     store = Store()
     script = """
         begin txn1
-        insert A foo
+        insert txn1 A foo
         commit txn1
         begin txn2
         update txn2 A bar
@@ -71,10 +71,10 @@ def test_delete_and_query():
     store = Store()
     script = """
         begin txn1
-        insert A todelete
+        insert txn1 A todelete
         commit txn1
         begin txn2
-        delete A
+        delete txn2 A
         commit txn2
         begin txn3
         query txn3
@@ -83,8 +83,6 @@ def test_delete_and_query():
     out = run_script(script, user="alice", store=store)
     assert "A" not in out[-2]
     print("test_delete_and_query passed.")
-
-
 
 def test_logical_delete_visibility():
     """
@@ -95,10 +93,10 @@ def test_logical_delete_visibility():
     - Expected: Bob still sees the record in his transaction; new transactions do not see the deleted record.
     """
     store = Store()
-    run_script("begin txn1\ninsert A gone\ncommit txn1", user="alice", store=store)
+    run_script("begin txn1\ninsert txn1 A gone\ncommit txn1", user="alice", store=store)
     bob_shell = Shell(user="bob", store=store)
     process_line(bob_shell, "begin txn2")
-    run_script("begin txn3\ndelete A\ncommit txn3", user="alice", store=store)
+    run_script("begin txn3\ndelete txn3 A\ncommit txn3", user="alice", store=store)
     out = []
     out.append(process_line(bob_shell, "query txn2"))
     out.append(process_line(bob_shell, "commit txn2"))
@@ -116,7 +114,7 @@ def test_read_your_own_writes():
     store = Store()
     script = """
         begin txn1
-        insert A temp
+        insert txn1 A temp
         query txn1
         commit txn1
     """
@@ -124,11 +122,10 @@ def test_read_your_own_writes():
     assert "A" in out[2] and "temp" in out[2]
     print("test_read_your_own_writes passed.")
 
-
 def test_version_chain_traversal():
     store = Store()
     # Insert v1 and commit
-    run_script("begin txn1\ninsert A v1\ncommit txn1", user="alice", store=store)
+    run_script("begin txn1\ninsert txn1 A v1\ncommit txn1", user="alice", store=store)
     # Query after v1
     out1 = run_script("begin txn2\nquery txn2\ncommit txn2", user="alice", store=store)
     assert "v1" in out1[-2]
@@ -156,8 +153,8 @@ def test_abort_handling():
     store = Store()
     script = """
         begin txn1
-        insert A shouldnotsee
-        abort
+        insert txn1 A shouldnotsee
+        abort txn1
         begin txn2
         query txn2
         commit txn2
@@ -175,12 +172,12 @@ def test_insert_conflict():
     store = Store()
     alice_script = """
         begin txn1
-        insert A alice
+        insert txn1 A alice
         commit txn1
     """
     bob_script = """
         begin txn2
-        insert A bob
+        insert txn2 A bob
         commit txn2
     """
     run_script(alice_script, user="alice", store=store)
@@ -200,10 +197,10 @@ def test_read_after_delete():
     store = Store()
     script = """
         begin txn1
-        insert A gone
+        insert txn1 A gone
         commit txn1
         begin txn2
-        delete A
+        delete txn2 A
         commit txn2
         begin txn3
         query txn3
@@ -222,10 +219,10 @@ def test_delete_then_read_same_txn():
     store = Store()
     script = """
         begin txn1
-        insert A gone
+        insert txn1 A gone
         commit txn1
         begin txn2
-        delete A
+        delete txn2 A
         query txn2
         commit txn2
     """
@@ -233,12 +230,10 @@ def test_delete_then_read_same_txn():
     assert "A" not in out[-2]
     print("test_delete_then_read_same_txn passed.")
 
-
-
 def test_write_write_conflict_threaded():
     store = Store()
     # Insert and commit A
-    run_script("begin txn0\ninsert A orig\ncommit txn0", user="alice", store=store)
+    run_script("begin txn0\ninsert txn0 A orig\ncommit txn0", user="alice", store=store)
 
     def txn1():
         run_script("begin txn1\nupdate txn1 A aliceval\ncommit txn1", user="alice", store=store)

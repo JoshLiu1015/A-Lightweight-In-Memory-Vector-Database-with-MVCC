@@ -2,6 +2,7 @@ from mvcc.cli_core import run_script
 from vector_search.vector_store import reset_store
 from mvcc.store import Store
 
+# Test that inserting records in a transaction triggers vector store updates and that both records are queryable by their content.
 def test_mvcc_insert_triggers_vector_store():
     reset_store()
     store = Store()
@@ -23,6 +24,7 @@ def test_mvcc_insert_triggers_vector_store():
     assert "doc1" in out[1]  # cats
     assert "doc2" in out[2]  # dogs
 
+# Test that a query returns the correct document based on vector similarity after insertion and commit.
 def test_mvcc_query_vector_search():
     reset_store()
     store = Store()
@@ -39,6 +41,7 @@ def test_mvcc_query_vector_search():
     print("Query output:", out[-2])
     assert "doc2" in out[-2]
 
+# Test that updating a record in a new transaction updates the vector store, and the updated value is returned by a query.
 def test_mvcc_update_triggers_vector_update():
     reset_store()
     store = Store()
@@ -57,6 +60,7 @@ def test_mvcc_update_triggers_vector_update():
     print("Query output after update:", out[-2])
     assert "doc1" in out[-2] and "updated value" in out[-2]
 
+# Test that concurrent inserts of the same key are not allowed (write-write conflict is detected and prevented).
 def test_mvcc_concurrent_inserts_same_key():
     reset_store()
     store = Store()
@@ -78,6 +82,7 @@ def test_mvcc_concurrent_inserts_same_key():
     except Exception as e:
         assert "already exists" in str(e)
 
+# Test snapshot isolation: a transaction sees only committed versions, not uncommitted updates from other transactions.
 def test_mvcc_snapshot_isolation_vector_search():
     reset_store()
     store = Store()
@@ -94,6 +99,7 @@ def test_mvcc_snapshot_isolation_vector_search():
     out = run_script(script, user="eve", store=store)
     assert "committed version" in out[1]
 
+# Test that multiple users can insert different keys and both are queryable in a new transaction.
 def test_mvcc_multiple_users_multiple_keys():
     reset_store()
     store = Store()
@@ -109,6 +115,7 @@ def test_mvcc_multiple_users_multiple_keys():
     assert "doc1" in out[1]
     assert "doc2" in out[2]
 
+# Test that queries return only the correct keys based on content, simulating a valid_keys filter via content.
 def test_mvcc_valid_keys_filter():
     reset_store()
     store = Store()
@@ -123,6 +130,7 @@ def test_mvcc_valid_keys_filter():
     assert "doc1" in out[1]
     assert "doc3" in out[2]
 
+# Test that after deleting a key, it can be re-inserted and the new value is queryable (MVCC re-insert after delete).
 def test_mvcc_reinsert_after_delete():
     reset_store()
     store = Store()
@@ -137,6 +145,7 @@ def test_mvcc_reinsert_after_delete():
     out = run_script(script, user="alice", store=store)
     assert "doc1" in out[1] and "second" in out[1]
 
+# Test that a delete in a transaction hides the key from queries in the same transaction (logical delete visibility).
 def test_mvcc_query_after_delete_same_txn():
     reset_store()
     store = Store()
@@ -150,6 +159,7 @@ def test_mvcc_query_after_delete_same_txn():
     out = run_script(script, user="alice", store=store)
     assert "doc1" not in out[2]
 
+# Test vector snapshot isolation: a transaction sees the version of a record as of its snapshot, even after updates in other transactions.
 def test_mvcc_vector_snapshot_isolation():
     reset_store()
     store = Store()
@@ -166,6 +176,7 @@ def test_mvcc_vector_snapshot_isolation():
     assert "version2" in out2[1]
     print("test_mvcc_vector_snapshot_isolation passed.")
 
+# Test that after updating and deleting, only the correct keys/values are returned by queries (valid_keys after update/delete).
 def test_mvcc_valid_keys_after_update_delete():
     reset_store()
     store = Store()
