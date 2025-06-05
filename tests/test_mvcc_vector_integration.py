@@ -1,6 +1,7 @@
 from mvcc.cli_core import run_script
 from vector_search.vector_store import reset_store
 from mvcc.store import Store
+import ast
 
 # Test that inserting records in a transaction triggers vector store updates and that both records are queryable by their content.
 def test_mvcc_insert_triggers_vector_store():
@@ -38,7 +39,6 @@ def test_mvcc_query_vector_search():
         commit txn2
     """
     out = run_script(script, user="alice", store=store)
-    print("Query output:", out[-2])
     assert "doc2" in out[-2]
 
 # Test that updating a record in a new transaction updates the vector store, and the updated value is returned by a query.
@@ -57,7 +57,6 @@ def test_mvcc_update_triggers_vector_update():
         commit txn3
     """
     out = run_script(script, user="alice", store=store)
-    print("Query output after update:", out[-2])
     assert "doc1" in out[-2] and "updated value" in out[-2]
 
 # Test that concurrent inserts of the same key are not allowed (write-write conflict is detected and prevented).
@@ -178,27 +177,37 @@ def test_true_snapshot_isolation_with_vector_search():
     store = Store()
     script = """
         begin txn1
-        insert txn1 doc1 cats
+        insert txn1 doc1 dog
+        insert txn1 doc2 ducks like to eat bread
+        insert txn1 doc3 i have a cute dog
+        insert txn1 doc4 basketball is life
+        insert txn1 doc5 dolphins are smart
+        insert txn1 doc6 josh and victor
+        insert txn1 doc7 nigerian food is spicy
         commit txn1
         begin txn2
-        # txn2 snapshot taken here
         begin txn3
-        update txn3 doc1 dogs
+        update txn3 doc1 cute dog
         commit txn3
-        query txn2 dogs
+        query txn2 cute dogs
         commit txn2
         begin txn4
-        query txn4 dogs
+        query txn4 cute dog
         commit txn4
     """
     out = run_script(script, user="alice", store=store)
-    # Find the output for 'query txn2 dogs' and 'query txn4 dogs'
-    # The order is: [begin txn1, insert, insert, commit, begin txn2, begin txn3, update, commit, query txn2 dogs, commit, begin txn4, query txn4 dogs, commit]
-    # So out[8] is the result of 'query txn2 dogs'
-    # and out[11] is the result of 'query txn4 dogs'
-    assert "cats" in out[8]
-    assert "dogs" not in out[8]
-    assert "dogs" in out[11]
+    # The order is: [begin txn1, insert x7, commit, begin txn2, begin txn3, update, commit, query txn2, commit, begin txn4, query txn4, commit]
+    # out[12] is the result of 'query txn2 cute dogs'
+    # out[15] is the result of 'query txn4 cute dog'
+    # For txn2, should see the old value 'dog' and 'i have a cute dog'
+    result_13 = ast.literal_eval(out[13])
+    assert "dog" in result_13.values()
+    assert "i have a cute dog" in result_13.values()
+    assert "cute dog" not in result_13.values()  # Only fails if the exact value is present
+    # For txn4, should see the updated value 'cute dog' and 'i have a cute dog'
+    result_16 = ast.literal_eval(out[16])
+    assert "cute dog" in result_16.values()
+    assert "i have a cute dog" in result_16.values()
 
 if __name__ == "__main__":
     test_mvcc_insert_triggers_vector_store()

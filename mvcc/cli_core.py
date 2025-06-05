@@ -53,7 +53,7 @@ def process_line(shell, line):
         else:
             txn_id = shell.current_txn
             query_str = ""
-        return repr({r.id: r.value for r in shell.store.read(txn_id, query_str, 100)})
+        return repr({r.id: r.value for r in shell.store.read(txn_id, query_str, 2)})
     else:
         return f"Unknown command: {cmd}"
 
