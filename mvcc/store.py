@@ -40,7 +40,8 @@ class Store:
         record.key = record.id + "_" + str(txn_id)
 
         with self.lock:
-            if record.id in self.records:
+            head = self.records.get(record.id)
+            if head is not None and not head.deleted:
                 raise Exception(f"record with ID {record.id} already exists")
             self.records[record.id] = record
 
@@ -52,7 +53,6 @@ class Store:
                     r for r in txn.snapshot_data if r.id != record.id
                 ] + [record]
 
-            
             vector = utils.string_to_vector(record.value)
             vector_store.add_vector(record.key, vector)
 
