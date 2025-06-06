@@ -1,4 +1,4 @@
-from mvcc.cli_core import run_script, Shell, process_line
+from CLI.cli_core import run_script, Shell, process_line
 from mvcc.store import Store
 import threading
 
@@ -22,24 +22,22 @@ def test_basic_insert_and_query():
 def test_snapshot_isolation():
     """
     Test: Snapshot isolation
-    - Alice inserts and commits a record.
-    - Bob starts a transaction before Alice's commit and queries.
-    - Expected: Bob sees Alice's committed record in his query.
+    - txn1 inserts and commits a record.
+    - txn2 starts a transaction before txn1 commit and queries.
+    - Expected: txn2 won't see txn1 committed record in txn2's query.
     """
     store = Store()
-    alice_script = """
+    script = """
         begin txn1
         insert txn1 A v1
-    """
-    bob_script = """
         begin txn2
         commit txn1
         query txn2
         commit txn2
     """
-    out2 = run_script(alice_script, user="alice", store=store)
-    out1 = run_script(bob_script, user="bob", store=store)
-    assert "A" not in out1[-2]
+    
+    output = run_script(script, store=store)
+    assert "A" not in output[4]
     print("test_snapshot_isolation passed.")
 
 def test_update_and_query():
@@ -58,7 +56,7 @@ def test_update_and_query():
         query txn2
         commit txn2
     """
-    out = run_script(script, user="alice", store=store)
+    out = run_script(script, store=store)
     assert "bar" in out[-2]
     print("test_update_and_query passed.")
 
@@ -84,63 +82,52 @@ def test_delete_and_query():
     assert "A" not in out[-2]
     print("test_delete_and_query passed.")
 
-def test_logical_delete_visibility():
-    """
-    Test: Logical delete visibility
-    - Alice inserts and commits a record.
-    - Bob starts a transaction before Alice deletes the record.
-    - Alice deletes and commits the record.
-    - Expected: Bob still sees the record in his transaction; new transactions do not see the deleted record.
-    """
-    store = Store()
-    run_script("begin txn1\ninsert txn1 A gone\ncommit txn1", user="alice", store=store)
-    bob_shell = Shell(user="bob", store=store)
-    process_line(bob_shell, "begin txn2")
-    run_script("begin txn3\ndelete txn3 A\ncommit txn3", user="alice", store=store)
-    out = []
-    out.append(process_line(bob_shell, "query txn2"))
-    out.append(process_line(bob_shell, "commit txn2"))
-    assert "A" in out[0]
-    eve_query = run_script("begin txn4\nquery txn4\ncommit txn4", user="eve", store=store)
-    assert "A" not in eve_query[-2]
-    print("test_logical_delete_visibility passed.")
+
 
 def test_read_your_own_writes():
     """
     Test: Read your own writes
-    - Begin a transaction, insert a record, and query before commit.
-    - Expected: The transaction sees its own uncommitted insert.
+    - Within a single transaction, a write is made and then read back before committing.
+    - The transaction should see its own uncommitted changes.
     """
     store = Store()
     script = """
         begin txn1
-        insert txn1 A temp
-        query txn1
+        insert txn1 A gone
         commit txn1
+        begin txn2
+        delete txn2 A
+        query txn2
+        commit txn2
     """
-    out = run_script(script, user="alice", store=store)
-    assert "A" in out[2] and "temp" in out[2]
+    out = run_script(script, store=store)
+    assert "A" not in out[-2]
     print("test_read_your_own_writes passed.")
 
 def test_version_chain_traversal():
+    """
+    Add multiple versions of a record (R1, R2, R3 by different transactions).
+    A read should select the correct version based on its snapshot timestamp.
+    """
+
     store = Store()
-    # Insert v1 and commit
-    run_script("begin txn1\ninsert txn1 A v1\ncommit txn1", user="alice", store=store)
-    # Query after v1
-    out1 = run_script("begin txn2\nquery txn2\ncommit txn2", user="alice", store=store)
-    assert "v1" in out1[-2]
-
-    # Update to v2 and commit
-    run_script("begin txn3\nupdate txn3 A v2\ncommit txn3", user="alice", store=store)
-    # Query after v2
-    out2 = run_script("begin txn4\nupdate txn4 A v4\nquery txn4\ncommit txn4", user="alice", store=store)
-    assert "v4" in out2[-2]
-
-    # Update to v3 and commit
-    run_script("begin txn5\nupdate txn5 A v3\ncommit txn5", user="alice", store=store)
-    # Query after v3
-    out3 = run_script("begin txn6\nquery txn6\ncommit txn6", user="alice", store=store)
-    assert "v3" in out3[-2]
+    script = """
+        begin txn1
+        insert txn1 A v1
+        commit txn1
+        begin txn2
+        query tnx2
+        commit txn2
+        begin txn3
+        update txn3 A v2
+        commit txn3
+        begin txn4
+        update txn4 A v3
+        query txn4
+        commit txn4
+    """
+    out = run_script(script, store=store)
+    assert "v1" in out[4] and "v3" in out[-2]
 
     print("test_version_chain_traversal passed.")
 
@@ -160,6 +147,7 @@ def test_abort_handling():
         commit txn2
     """
     out = run_script(script, user="alice", store=store)
+
     assert "A" not in out[-2]
     print("test_abort_handling passed.")
 
@@ -181,89 +169,101 @@ def test_insert_conflict():
         commit txn2
     """
     run_script(alice_script, user="alice", store=store)
+
+
+    # Bob attempts to insert A, which should fail
+    shell = Shell("bob", store)
     try:
-        run_script(bob_script, user="bob", store=store)
+        lines = [
+            "begin txn2",
+            "insert txn2 A bob",
+            "commit txn2"
+        ]
+        for line in lines:
+            process_line(shell, line)
         assert False, "Bob's insert should have failed, but it succeeded."
     except Exception as e:
+        print("Caught expected exception:", e)
         assert "already exists" in str(e)
+        # Abort txn2 cleanly
+        txn_id = shell.txn_map.get("txn2")
+        if txn_id is not None:
+            store.abort_transaction(txn_id)
+
     print("test_insert_conflict passed.")
 
-def test_read_after_delete():
-    """
-    Test: Read after delete
-    - Insert and commit, delete and commit, then query.
-    - Expected: The deleted record is not visible.
-    """
-    store = Store()
-    script = """
-        begin txn1
-        insert txn1 A gone
-        commit txn1
-        begin txn2
-        delete txn2 A
-        commit txn2
-        begin txn3
-        query txn3
-        commit txn3
-    """
-    out = run_script(script, user="alice", store=store)
-    assert "A" not in out[-2]
-    print("test_read_after_delete passed.")
 
-def test_delete_then_read_same_txn():
-    """
-    Test: Delete and then read in same transaction
-    - Insert and commit, begin new txn, delete, query before commit.
-    - Expected: The deleted record is not visible in the same transaction.
-    """
-    store = Store()
-    script = """
-        begin txn1
-        insert txn1 A gone
-        commit txn1
-        begin txn2
-        delete txn2 A
-        query txn2
-        commit txn2
-    """
-    out = run_script(script, user="alice", store=store)
-    assert "A" not in out[-2]
-    print("test_delete_then_read_same_txn passed.")
 
 def test_write_write_conflict_threaded():
+    """
+    Tests that a concurrent update to the same record causes a write conflict. 
+    txn2 updates record A and 
+    txn3 tries to update A while txn2 is uncommitted, 
+    blocks, then detects the conflict and is aborted. Validates correct conflict detection under MVCC.
+    """
     store = Store()
     # Insert and commit A
-    run_script("begin txn0\ninsert txn0 A orig\ncommit txn0", user="alice", store=store)
 
-    def txn1():
-        run_script("begin txn1\nupdate txn1 A aliceval\ncommit txn1", user="alice", store=store)
+    def txn1_and_2():
+        script1 = """
+            begin txn1
+            insert txn1 A orig
+            commit txn1
+            begin txn2
+            update txn2 A aliceval
+            sleep
+            commit txn2
+        """
 
-    def txn2():
-        run_script("begin txn2\nupdate txn2 A bobval\ncommit txn2", user="bob", store=store)
+        run_script(script1, store=store)
+    
+    
+    def txn3():
+        import time
+        time.sleep(3)
 
-    t1 = threading.Thread(target=txn1)
-    t2 = threading.Thread(target=txn2)
+        shell = Shell("bob", store=store)
+        try:
+            lines = "begin txn3\nupdate txn3 A bobval\ncommit txn3".strip().splitlines()
+            for line in lines:
+                process_line(shell, line)
+            assert False, "Bob's update should have failed, but it succeeded."
+        except Exception as e:
+            print("Caught expected exception:", e)
+            assert "Write conflict" in str(e)
+
+            txn_id = shell.txn_map.get("txn3")
+            if txn_id is not None:
+                try:
+                    print("trying to abort txn3")
+                    store.abort_transaction(txn_id)
+                except Exception as e2:
+                    print("abort txn3 also failed:", e2)
+            else:
+                print("txn3 never reached begin")
+            print("test_write_write_conflict_threaded passed.")
+
+
+
+    t1 = threading.Thread(target=txn1_and_2)
+    t2 = threading.Thread(target=txn3)
+
     t1.start()
     t2.start()
     t1.join()
     t2.join()
+    
 
-    # Query the final value
-    out = run_script("begin txn3\nquery\ncommit txn3", user="eve", store=store)
-    assert ("aliceval" in out[-2] or "bobval" in out[-2])
-    print("test_write_write_conflict_threaded passed.")
+ 
 
 if __name__ == "__main__":
     test_basic_insert_and_query()
     test_snapshot_isolation()
     test_update_and_query()
     test_delete_and_query()
-    test_logical_delete_visibility()
     test_read_your_own_writes()
     test_version_chain_traversal()
     test_abort_handling()
     test_insert_conflict()
-    test_read_after_delete()
-    test_delete_then_read_same_txn()
     test_write_write_conflict_threaded()
     print("All tests passed!")

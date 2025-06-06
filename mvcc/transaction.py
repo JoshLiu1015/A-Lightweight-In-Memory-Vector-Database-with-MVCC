@@ -11,4 +11,4 @@ class Transaction:
         self.id = txn_id
         self.status = TransactionStatus.ACTIVE
         self.start_ts = txn_id  # simplified timestamp
-        self.snapshot_data: list[Record] = []
+        self.snapshot_data: list[Record] = None

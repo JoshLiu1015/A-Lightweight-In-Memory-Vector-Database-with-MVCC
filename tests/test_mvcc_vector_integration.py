@@ -1,4 +1,4 @@
-from mvcc.cli_core import run_script
+from CLI.cli_core import run_script
 from vector_search.vector_store import reset_store
 from mvcc.store import Store
 import ast
