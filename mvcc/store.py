@@ -101,10 +101,6 @@ class Store:
             vector = utils.string_to_vector(record.value)
             vector_store.add_vector(record.key, vector)
 
-            if wasBlocked:
-                return "The update was blocked by an existing version, but it has been applied now."
-            else:
-                return "The update was applied successfully without blocking."
 
     def delete(self, txn_id: int, record_id: str) -> None:
         # treat delete as a new tombstone version

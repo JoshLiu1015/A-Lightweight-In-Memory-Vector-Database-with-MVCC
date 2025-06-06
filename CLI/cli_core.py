@@ -20,17 +20,28 @@ def process_line(shell, line):
         txn_name = args[0]
         key, value = args[1], " ".join(args[2:])
         txn_id = shell.txn_map[txn_name]
-        shell.store.insert(txn_id, Record(key, value))
+
+        try:
+            shell.store.insert(txn_id, Record(key, value))
+        except Exception as e:
+            print("write conflict, aborting transaction: ", txn_id)
+            shell.store.abort_transaction(txn_id)
+            return f"{e}"
         return "ok"
+    
     elif cmd == "update":
         txn_name = args[0]
         key, value = args[1], " ".join(args[2:])
         txn_id = shell.txn_map[txn_name]
-        returnMessage = shell.store.update(txn_id, Record(key, value))
-        if returnMessage == "The update was blocked by an existing version, but it has been applied now.":
-            return "blocked, but applied"
-        else:
-            return "ok"
+
+        try:
+            shell.store.update(txn_id, Record(key, value))
+        except Exception as e:
+            print("write conflict, aborting transaction: ", txn_id)
+            shell.store.abort_transaction(txn_id)
+            return f"{e}"
+        
+        return "ok"
     elif cmd == "delete":
         txn_name = args[0]
         key = args[1]
@@ -56,7 +67,6 @@ def process_line(shell, line):
         else:
             txn_id = shell.current_txn
             query_str = ""
-        print("txn_id:", txn_id, "query_str:", query_str)
         return repr({r.id: r.value for r in shell.store.read(txn_id, query_str, 2)})
     elif cmd == "sleep":
         import time

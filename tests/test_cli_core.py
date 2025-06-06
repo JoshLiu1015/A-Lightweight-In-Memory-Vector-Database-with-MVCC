@@ -8,6 +8,8 @@ def test_basic_insert_and_query():
     - Inserts a record and queries it in the same transaction.
     - Expected: The inserted record and its value are visible in the query output.
     """
+
+    print("Starting test_basic_insert_and_query...")
     store = Store()
     script = """
         begin txn1
@@ -17,7 +19,7 @@ def test_basic_insert_and_query():
     """
     out = run_script(script, user="alice", store=store)
     assert "A" in out[2] and "hello" in out[2]
-    print("test_basic_insert_and_query passed.")
+    print("test_basic_insert_and_query passed.\n\n")
 
 def test_snapshot_isolation():
     """
@@ -26,6 +28,8 @@ def test_snapshot_isolation():
     - txn2 starts a transaction before txn1 commit and queries.
     - Expected: txn2 won't see txn1 committed record in txn2's query.
     """
+
+    print("Starting test_snapshot_isolation...")
     store = Store()
     script = """
         begin txn1
@@ -38,7 +42,7 @@ def test_snapshot_isolation():
     
     output = run_script(script, store=store)
     assert "A" not in output[4]
-    print("test_snapshot_isolation passed.")
+    print("test_snapshot_isolation passed.\n\n")
 
 def test_update_and_query():
     """
@@ -46,6 +50,8 @@ def test_update_and_query():
     - Inserts a record, commits, then updates it and queries.
     - Expected: The updated value is visible in the query output after the update and commit.
     """
+
+    print("Starting test_update_and_query...")
     store = Store()
     script = """
         begin txn1
@@ -58,7 +64,7 @@ def test_update_and_query():
     """
     out = run_script(script, store=store)
     assert "bar" in out[-2]
-    print("test_update_and_query passed.")
+    print("test_update_and_query passed.\n\n")
 
 def test_delete_and_query():
     """
@@ -66,6 +72,8 @@ def test_delete_and_query():
     - Inserts a record, commits, then deletes it and queries.
     - Expected: The deleted record is not visible in the query output after the delete and commit.
     """
+
+    print("Starting test_delete_and_query...")
     store = Store()
     script = """
         begin txn1
@@ -80,7 +88,7 @@ def test_delete_and_query():
     """
     out = run_script(script, user="alice", store=store)
     assert "A" not in out[-2]
-    print("test_delete_and_query passed.")
+    print("test_delete_and_query passed.\n\n")
 
 
 
@@ -90,6 +98,8 @@ def test_read_your_own_writes():
     - Within a single transaction, a write is made and then read back before committing.
     - The transaction should see its own uncommitted changes.
     """
+
+    print("Starting test_read_your_own_writes...")
     store = Store()
     script = """
         begin txn1
@@ -102,7 +112,7 @@ def test_read_your_own_writes():
     """
     out = run_script(script, store=store)
     assert "A" not in out[-2]
-    print("test_read_your_own_writes passed.")
+    print("test_read_your_own_writes passed.\n\n")
 
 def test_version_chain_traversal():
     """
@@ -110,6 +120,7 @@ def test_version_chain_traversal():
     A read should select the correct version based on its snapshot timestamp.
     """
 
+    print("Starting test_version_chain_traversal...")
     store = Store()
     script = """
         begin txn1
@@ -129,7 +140,7 @@ def test_version_chain_traversal():
     out = run_script(script, store=store)
     assert "v1" in out[4] and "v3" in out[-2]
 
-    print("test_version_chain_traversal passed.")
+    print("test_version_chain_traversal passed.\n\n")
 
 def test_abort_handling():
     """
@@ -137,6 +148,8 @@ def test_abort_handling():
     - Insert a record, then abort/rollback.
     - Expected: The record is not visible after abort.
     """
+
+    print("Starting test_abort_handling...")
     store = Store()
     script = """
         begin txn1
@@ -149,7 +162,7 @@ def test_abort_handling():
     out = run_script(script, user="alice", store=store)
 
     assert "A" not in out[-2]
-    print("test_abort_handling passed.")
+    print("test_abort_handling passed.\n\n")
 
 def test_insert_conflict():
     """
@@ -157,6 +170,8 @@ def test_insert_conflict():
     - Two users try to insert the same key concurrently.
     - Expected: Only one insert succeeds, the other fails.
     """
+
+    print("Starting test_insert_conflict...")
     store = Store()
     alice_script = """
         begin txn1
@@ -169,28 +184,10 @@ def test_insert_conflict():
         commit txn2
     """
     run_script(alice_script, user="alice", store=store)
+    out = run_script(bob_script, user="bob", store=store)
+    assert "Write conflict on record 'A'" in out[-2] or "already exists" in out[-2]
 
-
-    # Bob attempts to insert A, which should fail
-    shell = Shell("bob", store)
-    try:
-        lines = [
-            "begin txn2",
-            "insert txn2 A bob",
-            "commit txn2"
-        ]
-        for line in lines:
-            process_line(shell, line)
-        assert False, "Bob's insert should have failed, but it succeeded."
-    except Exception as e:
-        print("Caught expected exception:", e)
-        assert "already exists" in str(e)
-        # Abort txn2 cleanly
-        txn_id = shell.txn_map.get("txn2")
-        if txn_id is not None:
-            store.abort_transaction(txn_id)
-
-    print("test_insert_conflict passed.")
+    print("test_insert_conflict passed.\n\n")
 
 
 
@@ -201,6 +198,8 @@ def test_write_write_conflict_threaded():
     txn3 tries to update A while txn2 is uncommitted, 
     blocks, then detects the conflict and is aborted. Validates correct conflict detection under MVCC.
     """
+
+    print("Starting test_write_write_conflict_threaded...")
     store = Store()
     # Insert and commit A
 
@@ -222,26 +221,8 @@ def test_write_write_conflict_threaded():
         import time
         time.sleep(3)
 
-        shell = Shell("bob", store=store)
-        try:
-            lines = "begin txn3\nupdate txn3 A bobval\ncommit txn3".strip().splitlines()
-            for line in lines:
-                process_line(shell, line)
-            assert False, "Bob's update should have failed, but it succeeded."
-        except Exception as e:
-            print("Caught expected exception:", e)
-            assert "Write conflict" in str(e)
-
-            txn_id = shell.txn_map.get("txn3")
-            if txn_id is not None:
-                try:
-                    print("trying to abort txn3")
-                    store.abort_transaction(txn_id)
-                except Exception as e2:
-                    print("abort txn3 also failed:", e2)
-            else:
-                print("txn3 never reached begin")
-            print("test_write_write_conflict_threaded passed.")
+        out = run_script("begin txn3\nupdate txn3 A bobval\ncommit txn3", store=store)
+        assert "Write conflict on record 'A'" in out[-2]
 
 
 
@@ -253,7 +234,7 @@ def test_write_write_conflict_threaded():
     t1.join()
     t2.join()
     
-
+    print("test_write_write_conflict_threaded passed.\n\n")
  
 
 if __name__ == "__main__":
