@@ -1,4 +1,4 @@
-from CLI.cli_core import run_script, Shell, process_line
+from CLI.cli_core import run_script
 from mvcc.store import Store
 import threading
 

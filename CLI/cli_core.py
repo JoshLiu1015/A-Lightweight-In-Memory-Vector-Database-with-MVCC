@@ -1,4 +1,3 @@
-from mvcc.store import Store
 from mvcc.record import Record
 
 class Shell:
