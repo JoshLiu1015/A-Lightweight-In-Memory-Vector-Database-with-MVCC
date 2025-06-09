@@ -10,7 +10,6 @@ import time
 import math
 from .record import Record
 from .transaction import Transaction, TransactionStatus
-from .vector_utils import convert_text_to_vector, send_vector
 from vector_search import utils, vector_store
 
 class Store:
@@ -63,6 +62,8 @@ class Store:
         record.created_by_txn_id = txn_id
         record.key = record.id + "_" + str(txn_id)
 
+        wasBlocked = False
+
         # Wait for existing head version to be committed or same txn
         while True:
             with self.lock:
@@ -73,10 +74,21 @@ class Store:
             creator_txn = self.transactions.get(creator_id)
             if creator_id == txn_id or (creator_txn and creator_txn.status != TransactionStatus.ACTIVE):
                 break
+            
+            if not wasBlocked:
+                print("blocking by txn", creator_id, "for record", record.id)
+                wasBlocked = True
             time.sleep(0.001)
 
         with self.lock:
             head = self.records[record.id]
+            txn = self.transactions[txn_id]
+
+            snapshot_version = next((r for r in txn.snapshot_data if r.id == record.id), None)
+            if snapshot_version is not None and snapshot_version.key != head.key:
+                raise Exception(f"Write conflict on record '{record.id}': ")
+            
+            
             record.next = head
             self.records[record.id] = record
 
@@ -88,6 +100,7 @@ class Store:
 
             vector = utils.string_to_vector(record.value)
             vector_store.add_vector(record.key, vector)
+
 
     def delete(self, txn_id: int, record_id: str) -> None:
         # treat delete as a new tombstone version
@@ -116,7 +129,7 @@ class Store:
             txns = dict(self.transactions)
             txn = txns.get(txn_id)
 
-            if txn.snapshot_data:
+            if txn.snapshot_data != None:
                 query_vector = utils.string_to_vector(query)
                 return_keys = utils.get_top_k_keys(query_vector, [r.key for r in txn.snapshot_data], k=k)
 

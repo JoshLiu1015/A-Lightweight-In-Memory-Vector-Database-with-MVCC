@@ -1,4 +1,3 @@
-from mvcc.store import Store
 from mvcc.record import Record
 
 class Shell:
@@ -20,13 +19,27 @@ def process_line(shell, line):
         txn_name = args[0]
         key, value = args[1], " ".join(args[2:])
         txn_id = shell.txn_map[txn_name]
-        shell.store.insert(txn_id, Record(key, value))
+
+        try:
+            shell.store.insert(txn_id, Record(key, value))
+        except Exception as e:
+            print("write conflict, aborting transaction: ", txn_id)
+            shell.store.abort_transaction(txn_id)
+            return f"{e}"
         return "ok"
+    
     elif cmd == "update":
         txn_name = args[0]
         key, value = args[1], " ".join(args[2:])
         txn_id = shell.txn_map[txn_name]
-        shell.store.update(txn_id, Record(key, value))
+
+        try:
+            shell.store.update(txn_id, Record(key, value))
+        except Exception as e:
+            print("write conflict, aborting transaction: ", txn_id)
+            shell.store.abort_transaction(txn_id)
+            return f"{e}"
+        
         return "ok"
     elif cmd == "delete":
         txn_name = args[0]
@@ -54,6 +67,9 @@ def process_line(shell, line):
             txn_id = shell.current_txn
             query_str = ""
         return repr({r.id: r.value for r in shell.store.read(txn_id, query_str, 2)})
+    elif cmd == "sleep":
+        import time
+        time.sleep(5)
     else:
         return f"Unknown command: {cmd}"
 
